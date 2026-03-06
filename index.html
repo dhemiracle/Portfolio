@@ -538,6 +538,34 @@
     </div>
 
     <!-- Upload zones -->
+    <div id="galleryAdminSection">
+    <div id="galleryLockScreen" style="margin-bottom:2rem;">
+      <div style="background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;padding:2rem;text-align:center;max-width:400px;margin:0 auto;">
+        <div style="font-size:2rem;margin-bottom:0.8rem;">🔐</div>
+        <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:1.2rem;">Enter your admin password to manage the gallery</p>
+        <div style="display:flex;gap:0.6rem;justify-content:center;">
+          <input type="password" id="adminPasswordInput" placeholder="Enter password"
+            style="padding:0.6rem 1rem;border-radius:3px;border:1px solid var(--border);
+            background:var(--navy);color:var(--cream);font-family:'DM Sans',sans-serif;
+            font-size:0.9rem;width:200px;" onkeydown="if(event.key==='Enter') checkAdminPassword()"/>
+          <button onclick="checkAdminPassword()"
+            style="padding:0.6rem 1.2rem;background:var(--gold);color:var(--navy);
+            border:none;border-radius:3px;font-weight:700;cursor:pointer;
+            font-family:'DM Sans',sans-serif;font-size:0.85rem;">Unlock</button>
+        </div>
+        <div id="passwordError" style="color:#ff6b6b;font-size:0.8rem;margin-top:0.6rem;display:none;">
+          ❌ Incorrect password. Try again.
+        </div>
+      </div>
+    </div>
+
+    <div id="galleryUploadZones" style="display:none;">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:1rem;">
+      <button onclick="lockGallery()"
+        style="padding:0.4rem 1rem;background:transparent;border:1px solid var(--border);
+        color:var(--text-muted);border-radius:3px;cursor:pointer;font-size:0.8rem;
+        font-family:'DM Sans',sans-serif;">🔒 Lock Admin</button>
+    </div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; margin-bottom:2rem;">
 
       <!-- Image upload via ImgBB -->
@@ -572,6 +600,10 @@
         </div>
       </div>
     </div>
+
+    </div><!-- end upload grid -->
+    </div><!-- end galleryUploadZones -->
+    </div><!-- end galleryAdminSection -->
 
     <!-- Gallery Grid -->
     <div class="gallery-grid" id="galleryGrid">
@@ -637,12 +669,93 @@
   }, { threshold: 0.12 });
   document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
 
-  // ── IMGBB CONFIG ──
-  const IMGBB_KEY = '86b359d94db460bbea7e0c9ef80d263a';
+  // ── ADMIN PASSWORD ──
+  const ADMIN_PASSWORD = 'Kingofhearts1#';
+  let isAdmin = false;
 
-  // Gallery state — persists in memory while page is open
+  function checkAdminPassword() {
+    const input = document.getElementById('adminPasswordInput').value;
+    if (input === ADMIN_PASSWORD) {
+      isAdmin = true;
+      document.getElementById('galleryLockScreen').style.display = 'none';
+      document.getElementById('galleryUploadZones').style.display = 'block';
+      document.getElementById('passwordError').style.display = 'none';
+      renderGallery();
+    } else {
+      document.getElementById('passwordError').style.display = 'block';
+      document.getElementById('adminPasswordInput').value = '';
+    }
+  }
+
+  function lockGallery() {
+    isAdmin = false;
+    document.getElementById('galleryLockScreen').style.display = 'block';
+    document.getElementById('galleryUploadZones').style.display = 'none';
+    document.getElementById('adminPasswordInput').value = '';
+    renderGallery();
+  }
+
+  // ── CONFIG ──
+  const IMGBB_KEY = '86b359d94db460bbea7e0c9ef80d263a';
+  const JSONBIN_KEY = '$2a$10$DVGMIvKP6rIokusZ5kNG9ewFlQnvKd.QVj26I5/ico7plf/RpxPTW';
+  const JSONBIN_URL = 'https://api.jsonbin.io/v3/b';
+  let BIN_ID = null;
+
+  // Gallery state
   let galleryItems = [];
   let activeFilter = 'all';
+
+  // ── JSONBIN: Load or create bin on page load ──
+  async function initGallery() {
+    const saved = localStorage.getItem('gallery_bin_id');
+    if (saved) {
+      BIN_ID = saved;
+      await loadGallery();
+    } else {
+      // Create a new bin
+      try {
+        const res = await fetch(JSONBIN_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Master-Key': JSONBIN_KEY,
+            'X-Bin-Name': 'miracle-portfolio-gallery',
+            'X-Bin-Private': 'false'
+          },
+          body: JSON.stringify({ items: [] })
+        });
+        const data = await res.json();
+        BIN_ID = data.metadata.id;
+        localStorage.setItem('gallery_bin_id', BIN_ID);
+      } catch(e) { console.error('Could not create bin:', e); }
+    }
+  }
+
+  async function loadGallery() {
+    if (!BIN_ID) return;
+    try {
+      const res = await fetch(`${JSONBIN_URL}/${BIN_ID}/latest`, {
+        headers: { 'X-Master-Key': JSONBIN_KEY }
+      });
+      const data = await res.json();
+      galleryItems = data.record.items || [];
+      renderGallery();
+    } catch(e) { console.error('Could not load gallery:', e); }
+  }
+
+  async function saveGallery() {
+    if (!BIN_ID) return;
+    try {
+      await fetch(`${JSONBIN_URL}/${BIN_ID}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Key': JSONBIN_KEY
+        },
+        body: JSON.stringify({ items: galleryItems })
+      });
+    } catch(e) { console.error('Could not save gallery:', e); }
+  }
 
   // ── IMAGE UPLOAD VIA IMGBB ──
   async function handleImageUpload(event) {
@@ -673,10 +786,11 @@
             mediaType: 'image'
           });
           renderGallery();
-          status.textContent = `✅ ${galleryItems.filter(i=>i.type==='analytics').length} image(s) uploaded!`;
+          await saveGallery();
+          status.textContent = `✅ ${galleryItems.filter(i=>i.type==='analytics').length} image(s) saved permanently!`;
           icon.textContent = '📊';
         } else {
-          status.textContent = '❌ Upload failed. Check your API key.';
+          status.textContent = '❌ Upload failed. Please try again.';
           icon.textContent = '📊';
         }
       } catch (err) {
@@ -697,7 +811,7 @@
   }
 
   // ── VIDEO ADD VIA LINK ──
-  function handleVideoAdd(event) {
+  async function handleVideoAdd(event) {
     event.stopPropagation();
     const linkInput = document.getElementById('videoLinkInput');
     const titleInput = document.getElementById('videoTitleInput');
@@ -716,15 +830,14 @@
       isEmbed: !!embedUrl
     });
     renderGallery();
+    await saveGallery();
     linkInput.value = '';
     titleInput.value = '';
   }
 
   function getEmbedUrl(url) {
-    // YouTube
     const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
     if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
-    // TikTok (no direct embed without oEmbed, use link as-is)
     return null;
   }
 
@@ -746,7 +859,7 @@
     if (filtered.length === 0) { emptyMsg.style.display = 'block'; return; }
     emptyMsg.style.display = 'none';
 
-    filtered.forEach(item => {
+    filtered.forEach((item, idx) => {
       const div = document.createElement('div');
       div.className = 'gallery-item';
       const label = item.type === 'analytics' ? '📊 Ad Analytics' : '🎬 AI Animation';
@@ -766,21 +879,38 @@
           style="width:100%;height:100%;object-fit:cover;transition:transform 0.4s;"/>`;
       }
 
+      // Delete button — admin only
+      const globalIdx = galleryItems.indexOf(item);
+      const deleteBtn = isAdmin
+        ? `<button onclick="deleteItem(${globalIdx}, event)"
+            style="background:rgba(255,60,60,0.15);border:1px solid rgba(255,60,60,0.3);
+            color:#ff6b6b;border-radius:3px;padding:0.3rem 0.6rem;cursor:pointer;
+            font-size:0.75rem;font-family:'DM Sans',sans-serif;">✕</button>`
+        : '';
       div.innerHTML = `
-        <div class="media-wrap" style="position:relative;">
-          ${mediaHtml}
-          ${isVideo && !item.isEmbed ? '' : ''}
-        </div>
-        <div class="gallery-caption">
-          <div class="cap-tag">${label}</div>
-          <div class="cap-title">${item.name}</div>
+        <div class="media-wrap" style="position:relative;">${mediaHtml}</div>
+        <div class="gallery-caption" style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div class="cap-tag">${label}</div>
+            <div class="cap-title">${item.name}</div>
+          </div>
+          ${deleteBtn}
         </div>`;
 
       if (!isVideo || !item.isEmbed) {
-        div.addEventListener('click', () => openLightbox(item));
+        div.querySelector('.media-wrap').addEventListener('click', () => openLightbox(item));
       }
       grid.appendChild(div);
     });
+  }
+
+  // ── DELETE ITEM ──
+  async function deleteItem(idx, event) {
+    event.stopPropagation();
+    if (!confirm('Remove this item from your gallery?')) return;
+    galleryItems.splice(idx, 1);
+    renderGallery();
+    await saveGallery();
   }
 
   // ── LIGHTBOX ──
@@ -813,6 +943,9 @@
     imgZone.addEventListener('dragleave', () => imgZone.classList.remove('dragover'));
     imgZone.addEventListener('drop', () => imgZone.classList.remove('dragover'));
   }
+
+  // ── INIT ──
+  initGallery();
 
 
 </script>
