@@ -535,25 +535,28 @@
       <button class="tab-btn active" onclick="filterGallery('all', this)">All</button>
       <button class="tab-btn" onclick="filterGallery('analytics', this)">📊 Ad Analytics</button>
       <button class="tab-btn" onclick="filterGallery('animation', this)">🎬 AI Animations</button>
+      <button class="tab-btn" onclick="toggleAdminPrompt()" id="adminKeyBtn" title="Admin Access"
+        style="border-color:transparent;color:var(--text-muted);font-size:1rem;padding:0.55rem 0.8rem;">🔐</button>
     </div>
 
-    <!-- Upload zones -->
-    <div id="galleryAdminSection">
-    <div id="galleryLockScreen" style="margin-bottom:2rem;">
-      <div style="background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;padding:2rem;text-align:center;max-width:400px;margin:0 auto;">
-        <div style="font-size:2rem;margin-bottom:0.8rem;">🔐</div>
-        <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:1.2rem;">Enter your admin password to manage the gallery</p>
-        <div style="display:flex;gap:0.6rem;justify-content:center;">
-          <input type="password" id="adminPasswordInput" placeholder="Enter password"
-            style="padding:0.6rem 1rem;border-radius:3px;border:1px solid var(--border);
-            background:var(--navy);color:var(--cream);font-family:'DM Sans',sans-serif;
-            font-size:0.9rem;width:200px;" onkeydown="if(event.key==='Enter') checkAdminPassword()"/>
-          <button onclick="checkAdminPassword()"
-            style="padding:0.6rem 1.2rem;background:var(--gold);color:var(--navy);
-            border:none;border-radius:3px;font-weight:700;cursor:pointer;
-            font-family:'DM Sans',sans-serif;font-size:0.85rem;">Unlock</button>
-        </div>
-        <div id="passwordError" style="color:#ff6b6b;font-size:0.8rem;margin-top:0.6rem;display:none;">
+    <!-- Admin password prompt (hidden by default) -->
+    <div id="adminPrompt" style="display:none;margin-bottom:1.5rem;">
+      <div style="background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;
+        padding:1rem 1.2rem;display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;max-width:420px;">
+        <input type="password" id="adminPasswordInput" placeholder="Admin password"
+          style="flex:1;min-width:160px;padding:0.5rem 0.8rem;border-radius:3px;
+          border:1px solid var(--border);background:var(--navy);color:var(--cream);
+          font-family:'DM Sans',sans-serif;font-size:0.85rem;"
+          onkeydown="if(event.key==='Enter') checkAdminPassword()"/>
+        <button onclick="checkAdminPassword()"
+          style="padding:0.5rem 1rem;background:var(--gold);color:var(--navy);
+          border:none;border-radius:3px;font-weight:700;cursor:pointer;
+          font-family:'DM Sans',sans-serif;font-size:0.82rem;">Unlock</button>
+        <button onclick="toggleAdminPrompt()"
+          style="padding:0.5rem 0.8rem;background:transparent;border:1px solid var(--border);
+          color:var(--text-muted);border-radius:3px;cursor:pointer;font-size:0.82rem;
+          font-family:'DM Sans',sans-serif;">Cancel</button>
+        <div id="passwordError" style="color:#ff6b6b;font-size:0.78rem;width:100%;display:none;">
           ❌ Incorrect password. Try again.
         </div>
       </div>
@@ -603,7 +606,6 @@
 
     </div><!-- end upload grid -->
     </div><!-- end galleryUploadZones -->
-    </div><!-- end galleryAdminSection -->
 
     <!-- Gallery Grid -->
     <div class="gallery-grid" id="galleryGrid">
@@ -673,12 +675,22 @@
   const ADMIN_PASSWORD = 'Kingofhearts1#';
   let isAdmin = false;
 
+  function toggleAdminPrompt() {
+    if (isAdmin) { lockGallery(); return; }
+    const prompt = document.getElementById('adminPrompt');
+    prompt.style.display = prompt.style.display === 'none' ? 'block' : 'none';
+    if (prompt.style.display === 'block') {
+      document.getElementById('adminPasswordInput').focus();
+    }
+  }
+
   function checkAdminPassword() {
     const input = document.getElementById('adminPasswordInput').value;
     if (input === ADMIN_PASSWORD) {
       isAdmin = true;
-      document.getElementById('galleryLockScreen').style.display = 'none';
+      document.getElementById('adminPrompt').style.display = 'none';
       document.getElementById('galleryUploadZones').style.display = 'block';
+      document.getElementById('adminKeyBtn').textContent = '🔓';
       document.getElementById('passwordError').style.display = 'none';
       renderGallery();
     } else {
@@ -689,8 +701,9 @@
 
   function lockGallery() {
     isAdmin = false;
-    document.getElementById('galleryLockScreen').style.display = 'block';
+    document.getElementById('adminPrompt').style.display = 'none';
     document.getElementById('galleryUploadZones').style.display = 'none';
+    document.getElementById('adminKeyBtn').textContent = '🔐';
     document.getElementById('adminPasswordInput').value = '';
     renderGallery();
   }
